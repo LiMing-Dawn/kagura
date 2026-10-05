@@ -73,12 +73,19 @@ cmake --build "$LLVM_BUILD" --target   LLVMSupport LLVMCore LLVMAnalysis LLVMTra
 
 LLVM_DIR="$LLVM_BUILD/lib/cmake/llvm"
 [[ -f "$LLVM_DIR/LLVMConfig.cmake" ]] || die "LLVMConfig.cmake not produced"
-LLVM_CONFIG_VERSION="$(sed -nE 's/^set\(LLVM_PACKAGE_VERSION "([^"]+)".*/\1/p' "$LLVM_DIR/LLVMConfig.cmake" | head -n1)"
-LLVM_MAJOR="${LLVM_CONFIG_VERSION%%.*}"
-[[ "$LLVM_MAJOR" =~ ^[0-9]+$ ]] || die "cannot detect LLVM major"
+
+LLVM_MAJOR="$(sed -nE 's/^[[:space:]]*set\(LLVM_VERSION_MAJOR[[:space:]]+([0-9]+)\).*/\1/p' "$LLVM_SRC/llvm/CMakeLists.txt" | head -n1)"
+LLVM_MINOR="$(sed -nE 's/^[[:space:]]*set\(LLVM_VERSION_MINOR[[:space:]]+([0-9]+)\).*/\1/p' "$LLVM_SRC/llvm/CMakeLists.txt" | head -n1)"
+LLVM_PATCH="$(sed -nE 's/^[[:space:]]*set\(LLVM_VERSION_PATCH[[:space:]]+([0-9]+)\).*/\1/p' "$LLVM_SRC/llvm/CMakeLists.txt" | head -n1)"
+[[ "$LLVM_MAJOR" =~ ^[0-9]+$ ]] || die "cannot detect LLVM major from llvm/CMakeLists.txt"
+[[ "$LLVM_MINOR" =~ ^[0-9]+$ ]] || LLVM_MINOR=0
+[[ "$LLVM_PATCH" =~ ^[0-9]+$ ]] || LLVM_PATCH=0
+LLVM_CONFIG_VERSION="${LLVM_MAJOR}.${LLVM_MINOR}.${LLVM_PATCH}"
+
 if (( LLVM_MAJOR < 17 || LLVM_MAJOR > 22 )); then
   die "Kagura supports LLVM 17-22; detected $LLVM_CONFIG_VERSION"
 fi
+log "Detected LLVM version: $LLVM_CONFIG_VERSION"
 
 log "Building Kagura static kagura-opt + runtime"
 cmake -S "$ROOT" -B "$KAGURA_BUILD" -G Ninja   -DCMAKE_TOOLCHAIN_FILE="$NDK_TC"   -DANDROID_ABI=arm64-v8a   -DANDROID_PLATFORM="android-${ANDROID_API}"   -DANDROID_STL=c++_static   -DCMAKE_BUILD_TYPE=Release   -DLLVM_DIR="$LLVM_DIR"   -DCMAKE_EXE_LINKER_FLAGS="-static -Wl,-z,max-page-size=16384"   -DKAGURA_BUILD_TESTS=OFF   -DKAGURA_BITCODE_TOOLS=ON   -DKAGURA_FORCE_STATIC_PLUGIN=ON   -DKAGURA_PCH=OFF   -DKAGURA_USE_CACHE=OFF
