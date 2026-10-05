@@ -28,7 +28,7 @@ if readelf -l "$KAGURA_OPT" | grep -q 'Requesting program interpreter'; then
   readelf -l "$KAGURA_OPT" >&2
   die "kagura-opt is dynamically linked; expected a static Bionic binary"
 fi
-"$KAGURA_OPT" --help >/dev/null
+qemu-aarch64 "$KAGURA_OPT" --help >/dev/null
 
 cat > "$TEST_DIR/test.c" <<'EOF'
 #include <stdio.h>
@@ -55,7 +55,7 @@ link_and_run() {
     "$bc" "$RUNTIME" -Wl,-z,max-page-size=16384 -o "$exe"
   readelf -h "$exe" | grep -q 'Machine:.*AArch64' || die "$exe is not AArch64"
   local got
-  got="$($exe)"
+  got="$(qemu-aarch64 "$exe")"
   [[ "$got" == "$expected" ]] || die "runtime mismatch: expected '$expected', got '$got'"
 }
 
