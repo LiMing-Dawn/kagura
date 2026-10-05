@@ -74,10 +74,28 @@ cmake --build "$LLVM_BUILD" --target   LLVMSupport LLVMCore LLVMAnalysis LLVMTra
 LLVM_DIR="$LLVM_BUILD/lib/cmake/llvm"
 [[ -f "$LLVM_DIR/LLVMConfig.cmake" ]] || die "LLVMConfig.cmake not produced"
 
-LLVM_MAJOR="$(sed -nE 's/^[[:space:]]*set\(LLVM_VERSION_MAJOR[[:space:]]+([0-9]+)\).*/\1/p' "$LLVM_SRC/llvm/CMakeLists.txt" | head -n1)"
-LLVM_MINOR="$(sed -nE 's/^[[:space:]]*set\(LLVM_VERSION_MINOR[[:space:]]+([0-9]+)\).*/\1/p' "$LLVM_SRC/llvm/CMakeLists.txt" | head -n1)"
-LLVM_PATCH="$(sed -nE 's/^[[:space:]]*set\(LLVM_VERSION_PATCH[[:space:]]+([0-9]+)\).*/\1/p' "$LLVM_SRC/llvm/CMakeLists.txt" | head -n1)"
-[[ "$LLVM_MAJOR" =~ ^[0-9]+$ ]] || die "cannot detect LLVM major from llvm/CMakeLists.txt"
+LLVM_VERSION_FILE="$LLVM_SRC/cmake/Modules/LLVMVersion.cmake"
+LLVM_MAJOR=""
+LLVM_MINOR=""
+LLVM_PATCH=""
+
+if [[ -f "$LLVM_VERSION_FILE" ]]; then
+  LLVM_MAJOR="$(sed -nE 's/^[[:space:]]*set\(LLVM_VERSION_MAJOR[[:space:]]+([0-9]+)\).*/\1/p' "$LLVM_VERSION_FILE" | head -n1)"
+  LLVM_MINOR="$(sed -nE 's/^[[:space:]]*set\(LLVM_VERSION_MINOR[[:space:]]+([0-9]+)\).*/\1/p' "$LLVM_VERSION_FILE" | head -n1)"
+  LLVM_PATCH="$(sed -nE 's/^[[:space:]]*set\(LLVM_VERSION_PATCH[[:space:]]+([0-9]+)\).*/\1/p' "$LLVM_VERSION_FILE" | head -n1)"
+fi
+
+if [[ ! "$LLVM_MAJOR" =~ ^[0-9]+$ ]]; then
+  LLVM_MAJOR="$(sed -nE 's/^LLVM_VERSION_MAJOR:.*=([0-9]+)$/\1/p' "$LLVM_BUILD/CMakeCache.txt" | head -n1)"
+fi
+if [[ ! "$LLVM_MINOR" =~ ^[0-9]+$ ]]; then
+  LLVM_MINOR="$(sed -nE 's/^LLVM_VERSION_MINOR:.*=([0-9]+)$/\1/p' "$LLVM_BUILD/CMakeCache.txt" | head -n1)"
+fi
+if [[ ! "$LLVM_PATCH" =~ ^[0-9]+$ ]]; then
+  LLVM_PATCH="$(sed -nE 's/^LLVM_VERSION_PATCH:.*=([0-9]+)$/\1/p' "$LLVM_BUILD/CMakeCache.txt" | head -n1)"
+fi
+
+[[ "$LLVM_MAJOR" =~ ^[0-9]+$ ]] || die "cannot detect LLVM major from LLVMVersion.cmake or CMakeCache.txt"
 [[ "$LLVM_MINOR" =~ ^[0-9]+$ ]] || LLVM_MINOR=0
 [[ "$LLVM_PATCH" =~ ^[0-9]+$ ]] || LLVM_PATCH=0
 LLVM_CONFIG_VERSION="${LLVM_MAJOR}.${LLVM_MINOR}.${LLVM_PATCH}"
