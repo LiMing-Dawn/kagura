@@ -13,13 +13,14 @@ WORK_BASE="${RUNNER_TEMP:-/tmp}/kagura-termux-${NDK_LABEL}"
 DOWNLOADS="$WORK_BASE/downloads"
 UNPACK="$WORK_BASE/unpack"
 LLVM_SRC="$WORK_BASE/llvm-project"
+LLVM_TBLGEN_BUILD="$WORK_BASE/llvm-tblgen-build"
 LLVM_BUILD="$WORK_BASE/llvm-build"
 KAGURA_BUILD="$WORK_BASE/kagura-build"
 STAGE="$ROOT/out/termux/$NDK_LABEL/stage"
 ENV_FILE="$ROOT/out/termux/$NDK_LABEL/build.env"
 
 rm -rf "$WORK_BASE" "$ROOT/out/termux/$NDK_LABEL"
-mkdir -p "$DOWNLOADS" "$UNPACK/ndk" "$LLVM_BUILD" "$KAGURA_BUILD" "$STAGE" "$(dirname "$ENV_FILE")"
+mkdir -p "$DOWNLOADS" "$UNPACK/ndk" "$LLVM_TBLGEN_BUILD" "$LLVM_BUILD" "$KAGURA_BUILD" "$STAGE" "$(dirname "$ENV_FILE")"
 
 log(){ printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 die(){ echo "error: $*" >&2; exit 1; }
@@ -68,7 +69,7 @@ NDK_TC="$NDK_ROOT/build/cmake/android.toolchain.cmake"
 log "Building minimal LLVM development tree for Android/Bionic AArch64"
 cmake -S "$LLVM_SRC/llvm" -B "$LLVM_BUILD" -G Ninja   -DCMAKE_TOOLCHAIN_FILE="$NDK_TC"   -DANDROID_ABI=arm64-v8a   -DANDROID_PLATFORM="android-${ANDROID_API}"   -DANDROID_STL=c++_static   -DCMAKE_BUILD_TYPE=Release   -DLLVM_TARGETS_TO_BUILD=AArch64   -DLLVM_ENABLE_PROJECTS=""   -DLLVM_ENABLE_RUNTIMES=""   -DLLVM_INCLUDE_TESTS=OFF   -DLLVM_INCLUDE_EXAMPLES=OFF   -DLLVM_INCLUDE_BENCHMARKS=OFF   -DLLVM_INCLUDE_DOCS=OFF   -DLLVM_ENABLE_TERMINFO=OFF   -DLLVM_ENABLE_ZLIB=OFF   -DLLVM_ENABLE_ZSTD=OFF   -DLLVM_ENABLE_LIBXML2=OFF   -DLLVM_ENABLE_LIBEDIT=OFF   -DLLVM_BUILD_TOOLS=ON   -DLLVM_BUILD_UTILS=ON   -DLLVM_INSTALL_UTILS=ON   -DLLVM_ENABLE_PIC=ON   -DLLVM_ENABLE_RTTI=OFF   -DLLVM_ENABLE_EH=OFF   -DLLVM_ENABLE_ASSERTIONS=OFF   -DLLVM_BUILD_LLVM_DYLIB=OFF   -DLLVM_LINK_LLVM_DYLIB=OFF
 
-cmake --build "$LLVM_BUILD" --target   LLVMSupport LLVMCore LLVMAnalysis LLVMTransformUtils LLVMPasses   LLVMIRReader LLVMBitReader LLVMBitWriter llvm-tblgen -- -j"$(nproc)"
+cmake --build "$LLVM_BUILD" --target   LLVMSupport LLVMCore LLVMAnalysis LLVMTransformUtils LLVMPasses   LLVMIRReader LLVMBitReader LLVMBitWriter -- -j"$(nproc)"
 
 LLVM_DIR="$LLVM_BUILD/lib/cmake/llvm"
 [[ -f "$LLVM_DIR/LLVMConfig.cmake" ]] || die "LLVMConfig.cmake not produced"
