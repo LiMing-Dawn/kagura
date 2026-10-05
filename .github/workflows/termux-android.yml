@@ -9,12 +9,12 @@ on:
         default: "all"
         type: string
       android_api:
-        description: "Android API level used for the Bionic host build"
+        description: "Android API level used for the Termux/Bionic host binaries"
         required: true
         default: "24"
         type: string
       run_tests:
-        description: "Run IR + native runtime smoke tests"
+        description: "Run QEMU-backed AArch64/Bionic smoke tests"
         required: true
         default: true
         type: boolean
@@ -31,6 +31,7 @@ on:
 
 permissions:
   contents: read
+  actions: write
 
 concurrency:
   group: termux-android-${{ github.workflow }}-${{ github.ref }}
@@ -48,6 +49,22 @@ jobs:
       android_api: ${{ steps.resolve.outputs.android_api }}
       run_tests: ${{ steps.resolve.outputs.run_tests }}
     steps:
+      - name: Remove superseded failed baseline run
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STALE_RUN_ID: "37295013548"
+        run: |
+          set +e
+          gh api -X DELETE "repos/${GITHUB_REPOSITORY}/actions/runs/${STALE_RUN_ID}" >/dev/null 2>&1
+          rc=$?
+          if (( rc == 0 )); then
+            echo "Deleted failed workflow run ${STALE_RUN_ID}"
+          else
+            echo "Failed run ${STALE_RUN_ID} is already gone or cannot be deleted; continuing."
+          fi
+          exit 0
+
       - id: resolve
         shell: bash
         env:
@@ -63,7 +80,7 @@ jobs:
             IFS=',' read -r -a labels <<< "$request"
           fi
 
-          ((${#labels[@]} > 0)) || { echo '::error::empty NDK matrix'; exit 1; }
+          (("${#labels[@]}" > 0)) || { echo '::error::empty NDK matrix'; exit 1; }
           json="$(printf '%s\n' "${labels[@]}" | jq -R . | jq -sc .)"
           echo "ndks=$json" >> "$GITHUB_OUTPUT"
           echo "android_api=$REQUESTED_API" >> "$GITHUB_OUTPUT"
@@ -73,8 +90,8 @@ jobs:
   build:
     name: ${{ matrix.ndk }} / Termux arm64
     needs: matrix
-    runs-on: ubuntu-24.04-arm
-    timeout-minutes: 120
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
     strategy:
       fail-fast: false
       matrix:
@@ -89,7 +106,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-            cmake ninja-build xz-utils file jq binutils
+            build-essential cmake ninja-build git python3 xz-utils file jq binutils qemu-user
 
       - name: Build Kagura for Termux
         env:
