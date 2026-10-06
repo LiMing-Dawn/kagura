@@ -67,7 +67,7 @@ link_and_run() {
 
 log "Smoke: XOR string + flattening"
 compile_bc "$TEST_DIR/base.bc"
-"$KAGURA_OPT" -O1 -kagura-str -kagura-fla "$TEST_DIR/base.bc" -o "$TEST_DIR/str-fla.bc"
+qemu-aarch64 "$KAGURA_OPT" -O1 -kagura-str -kagura-fla "$TEST_DIR/base.bc" -o "$TEST_DIR/str-fla.bc"
 if strings "$TEST_DIR/str-fla.bc" | grep -Fq 'KAGURA_TERMUX_SECRET_7E3B1A'; then
   die "XOR string pass left plaintext in transformed bitcode"
 fi
@@ -75,7 +75,7 @@ link_and_run "$TEST_DIR/str-fla.bc" "$TEST_DIR/str-fla"
 
 log "Smoke: AES-CTR string encryption"
 compile_bc "$TEST_DIR/aes-base.bc"
-"$KAGURA_OPT" -O1 -kagura-str-aes "$TEST_DIR/aes-base.bc" -o "$TEST_DIR/aes.bc"
+qemu-aarch64 "$KAGURA_OPT" -O1 -kagura-str-aes "$TEST_DIR/aes-base.bc" -o "$TEST_DIR/aes.bc"
 if strings "$TEST_DIR/aes.bc" | grep -Fq 'KAGURA_TERMUX_SECRET_7E3B1A'; then
   die "AES string pass left plaintext in transformed bitcode"
 fi
@@ -83,7 +83,7 @@ link_and_run "$TEST_DIR/aes.bc" "$TEST_DIR/aes"
 
 log "Smoke: VM virtualization"
 compile_bc "$TEST_DIR/vm-base.bc"
-"$KAGURA_OPT" -O1 -kagura-vm "$TEST_DIR/vm-base.bc" -o "$TEST_DIR/vm.bc"
+qemu-aarch64 "$KAGURA_OPT" -O1 -kagura-vm "$TEST_DIR/vm-base.bc" -o "$TEST_DIR/vm.bc"
 strings "$TEST_DIR/vm.bc" | grep -Fq 'kagura_vm_execute' || die "VM pass did not emit kagura_vm_execute"
 link_and_run "$TEST_DIR/vm.bc" "$TEST_DIR/vm"
 
