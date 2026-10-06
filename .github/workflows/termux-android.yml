@@ -1,0 +1,138 @@
+name: Termux Android
+
+on:
+  workflow_dispatch:
+    inputs:
+      ndk:
+        description: "NDK labels: all, one label, or comma-separated (e.g. r29,r30-beta2)"
+        required: true
+        default: "all"
+        type: string
+      android_api:
+        description: "Android API level used for the Termux/Bionic host binaries"
+        required: true
+        default: "24"
+        type: string
+      run_tests:
+        description: "Run QEMU-backed AArch64/Bionic smoke tests"
+        required: true
+        default: true
+        type: boolean
+  pull_request:
+    paths:
+      - '.github/workflows/termux-android.yml'
+      - 'ci/termux/**'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
+      - 'include/**'
+      - 'lib/**'
+      - 'runtime/**'
+      - 'tools/**'
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: termux-android-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  KNOWN_NDKS: "r26d r27d r28c r29 r30-beta2"
+
+jobs:
+  matrix:
+    name: Resolve NDK matrix
+    runs-on: ubuntu-24.04
+    outputs:
+      ndks: ${{ steps.resolve.outputs.ndks }}
+      android_api: ${{ steps.resolve.outputs.android_api }}
+      run_tests: ${{ steps.resolve.outputs.run_tests }}
+    steps:
+      - name: Remove superseded failed baseline run
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STALE_RUN_ID: "37295013548"
+        run: |
+          set +e
+          gh api -X DELETE "repos/${GITHUB_REPOSITORY}/actions/runs/${STALE_RUN_ID}" >/dev/null 2>&1
+          rc=$?
+          if (( rc == 0 )); then
+            echo "Deleted failed workflow run ${STALE_RUN_ID}"
+          else
+            echo "Failed run ${STALE_RUN_ID} is already gone or cannot be deleted; continuing."
+          fi
+          exit 0
+
+      - id: resolve
+        shell: bash
+        env:
+          REQUESTED_NDK: ${{ github.event_name == 'workflow_dispatch' && inputs.ndk || 'r29' }}
+          REQUESTED_API: ${{ github.event_name == 'workflow_dispatch' && inputs.android_api || '24' }}
+          REQUESTED_TESTS: ${{ github.event_name != 'workflow_dispatch' || inputs.run_tests }}
+        run: |
+          set -euo pipefail
+          request="${REQUESTED_NDK// /}"
+          if [[ "$request" == "all" ]]; then
+            mapfile -t labels < <(tr ' ' '\n' <<< "$KNOWN_NDKS" | sed '/^$/d')
+          else
+            IFS=',' read -r -a labels <<< "$request"
+          fi
+
+          (("${#labels[@]}" > 0)) || { echo '::error::empty NDK matrix'; exit 1; }
+          json="$(printf '%s\n' "${labels[@]}" | jq -R . | jq -sc .)"
+          echo "ndks=$json" >> "$GITHUB_OUTPUT"
+          echo "android_api=$REQUESTED_API" >> "$GITHUB_OUTPUT"
+          echo "run_tests=$REQUESTED_TESTS" >> "$GITHUB_OUTPUT"
+          echo "Resolved NDK matrix: $json"
+
+  build:
+    name: ${{ matrix.ndk }} / Termux arm64
+    needs: matrix
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        ndk: ${{ fromJSON(needs.matrix.outputs.ndks) }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build git python3 xz-utils file jq binutils qemu-user
+
+      - name: Build Kagura for Termux
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NDK_LABEL: ${{ matrix.ndk }}
+          ANDROID_API: ${{ needs.matrix.outputs.android_api }}
+        run: bash ci/termux/build.sh
+
+      - name: Smoke tests
+        if: needs.matrix.outputs.run_tests == 'true'
+        env:
+          NDK_LABEL: ${{ matrix.ndk }}
+        run: bash ci/termux/test.sh
+
+      - name: Package
+        env:
+          NDK_LABEL: ${{ matrix.ndk }}
+        run: bash ci/termux/package.sh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kagura-termux-${{ matrix.ndk }}-aarch64
+          path: |
+            out/artifacts/*.tar.xz
+            out/artifacts/*.sha256
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
