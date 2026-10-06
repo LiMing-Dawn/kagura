@@ -39,7 +39,8 @@ qemu-aarch64 "$KAGURA_OPT" --help >/dev/null
 cat > "$TEST_DIR/test.c" <<'EOF'
 #include <stdio.h>
 static const char kagura_secret[] = "KAGURA_TERMUX_SECRET_7E3B1A";
-__attribute__((noinline)) static int protected_sum(int x) {
+__attribute__((noinline, used, annotate("kagura_vm")))
+int protected_sum(int x) {
   int y = x * 13;
   if ((y & 1) != 0) y += 9; else y += 17;
   return y;
