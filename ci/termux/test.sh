@@ -14,6 +14,12 @@ TEST_DIR="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/kagura-smoke-${NDK_LABEL}"
 rm -rf "$TEST_DIR"
 mkdir -p "$TEST_DIR"
 
+NDK_PREBUILT="$NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64"
+if [[ ! -d "$NDK_PREBUILT" ]]; then
+  NDK_PREBUILT="$(find "$NDK_ROOT/toolchains/llvm/prebuilt" -mindepth 1 -maxdepth 1 -type d -name 'linux-*' -print -quit)"
+fi
+[[ -n "$NDK_PREBUILT" && -d "$NDK_PREBUILT" ]] || die "NDK LLVM prebuilt directory not found"
+
 CC="$NDK_PREBUILT/bin/aarch64-linux-android${ANDROID_API}-clang"
 [[ -x "$CC" ]] || CC="$NDK_PREBUILT/bin/clang"
 TARGET_ARGS=()
