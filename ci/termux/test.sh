@@ -83,8 +83,12 @@ link_and_run "$TEST_DIR/aes.bc" "$TEST_DIR/aes"
 
 log "Smoke: VM virtualization"
 compile_bc "$TEST_DIR/vm-base.bc"
-qemu-aarch64 "$KAGURA_OPT" -O1 -kagura-vm "$TEST_DIR/vm-base.bc" -o "$TEST_DIR/vm.bc"
-strings "$TEST_DIR/vm.bc" | grep -Fq 'kagura_vm_execute' || die "VM pass did not emit kagura_vm_execute"
-link_and_run "$TEST_DIR/vm.bc" "$TEST_DIR/vm"
+qemu-aarch64 "$KAGURA_OPT" -O1 -kagura-vm -kagura-protect=protected_sum -S \
+  "$TEST_DIR/vm-base.bc" -o "$TEST_DIR/vm.ll"
+grep -Eq '@kagura_vm_execute|@kagura_vm_bc_' "$TEST_DIR/vm.ll" \
+  || die "VM pass did not emit VM trampoline/bytecode globals"
+grep -Eq 'call i64 @kagura_vm_execute|call.*@kagura_vm_execute' "$TEST_DIR/vm.ll" \
+  || die "VM pass did not replace protected_sum with a VM trampoline"
+link_and_run "$TEST_DIR/vm.ll" "$TEST_DIR/vm"
 
 log "All smoke tests passed for $NDK_LABEL / LLVM $LLVM_VERSION"
