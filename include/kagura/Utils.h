@@ -11,6 +11,9 @@
 
 namespace kagura {
 
+// Shared pass-support API. Implementations live in lib/Transforms/Support/;
+// see docs/architecture.md for the source-file responsibilities.
+
 // ---- Audit log helpers ----
 
 /// Attach a kagura_obfuscated metadata node to F recording the pass name.
@@ -44,7 +47,7 @@ bool shouldObfuscate(llvm::Function &F, llvm::StringRef PassAttr,
 /// Returns true if Name is a symbol kagura itself generated.
 ///
 /// Passes must not obfuscate their own helpers, and SymbolMap must not report
-/// them. Both checks used to be open-coded and had drifted apart — Utils.cpp
+/// them. Both checks used to be open-coded and had drifted apart — the passes
 /// matched only "kagura_" while SymbolMap.cpp also matched "__kagura", so the
 /// "__kg_*" helpers emitted by FunctionSplit and the "kagura.*" globals
 /// emitted by EncryptedLookupTable and ControlFlowFlattening were re-obfuscated
@@ -169,7 +172,7 @@ uint64_t randomForWidth(PRNG &RNG, unsigned Bits);
 /// Demote all PHI nodes in F to alloca/load/store (needed before flattening).
 void demotePhis(llvm::Function &F);
 
-/// Collects all basic blocks in F except entry (safe to iterate & mutate).
+/// Snapshot all basic blocks in F, including entry (safe to iterate & mutate).
 std::vector<llvm::BasicBlock *> getBlocks(llvm::Function &F);
 
 /// Get or declare an external C function in M (idempotent).
@@ -237,10 +240,16 @@ bool isWasmTarget(const llvm::Module &M);
 
 /// Collect all ConstantDataArray globals that look like strings, are used in
 /// at least one function, and satisfy basic heuristics (length >= 4, no format
-/// specifiers, etc.).  If StrictLinkage is true, only private/internal globals
-/// are collected.
+/// specifiers, etc.). If StrictLinkage is true, only private/internal globals
+/// are collected. With StringAggressive, use startup-safe private/internal
+/// strings instead, including short/format strings and aggregate-only uses.
 std::vector<llvm::GlobalVariable *>
 collectStringGlobals(llvm::Module &M, bool StrictLinkage = false);
+
+/// Whether startup decryption can safely replace this application-owned
+/// string. Allows PHIs and nested constant arrays/structs, but excludes
+/// externally visible storage, TLS, special sections and compiler metadata.
+bool canProtectStringAtStartup(const llvm::GlobalVariable &GV);
 
 // ---- Global-variable use analysis ----
 
@@ -253,15 +262,21 @@ collectStringGlobals(llvm::Module &M, bool StrictLinkage = false);
 /// consumed. PHI users are excluded because the guard splits the block, which
 /// would invalidate the PHI's incoming edges.
 bool hasOnlyGuardableUses(const llvm::GlobalVariable *GV);
+/// Clear inferred memory effects on F and its direct callers after adding
+/// initialization writes; also clear corresponding call-site promises.
+void invalidateMemoryEffects(llvm::Function &F);
+/// Guard every instruction leaf of a previously validated constant-use graph.
+void emitStringGuards(llvm::GlobalVariable *GV, llvm::GlobalVariable *FlagGV,
+                      llvm::Function *DecryptStub, llvm::StringRef BBPrefix);
 
 // ---- Lazy-decrypt guard ----
 
 /// Emit, immediately before InsertBefore:
 ///
-///     if (!FlagGV) { DecryptStub(); FlagGV = 1; }
+///     initialize_once(FlagGV, DecryptStub);
 ///
-/// so an encrypted global is decrypted at most once, on first use, rather than
-/// on every path that reaches it. BBPrefix names the blocks the guard creates
+/// FlagGV starts at 0, is claimed as 1, and is published as 2 with
+/// acquire/release synchronization. BBPrefix names the blocks the guard creates
 /// ("lazy" for byte strings, "wlazy" for wide strings) purely so the IR stays
 /// readable when both passes run.
 void emitLazyGuard(llvm::Instruction *InsertBefore,

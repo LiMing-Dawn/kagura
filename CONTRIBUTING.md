@@ -3,7 +3,7 @@
 ## Getting Started
 
 ```bash
-git clone https://github.com/ykus4/kagura.git
+git clone https://github.com/qusamulab/kagura.git
 cd kagura
 bash build.sh
 cd build && ctest --output-on-failure
@@ -113,6 +113,12 @@ To run the differential tests (obfuscated vs. plain output comparison):
   ```
 - No `using namespace std`
 - No `LLVM_VERSION_MAJOR` guards for the `getTargetTriple()` API — use `kagura::getModuleTriple()` instead
+
+Shared pass helpers are declared in `include/kagura/Utils.h` and implemented
+by responsibility in `lib/Transforms/Support/` (policy, random, target, IR and
+string helpers). Extend the relevant file rather than adding unrelated helpers
+to a pass. CMake discovers support sources automatically and compiles them
+individually even with `KAGURA_UNITY_BUILD=ON`.
 
 ## Pull Requests
 
