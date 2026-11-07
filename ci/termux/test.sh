@@ -35,6 +35,13 @@ if readelf -l "$KAGURA_OPT" | grep -q 'Requesting program interpreter'; then
   die "kagura-opt is dynamically linked; expected a static Bionic binary"
 fi
 qemu-aarch64 "$KAGURA_OPT" --help >/dev/null
+[[ -f "$KAGURA_DRIVER" ]] || die "v0.4+ compiler driver missing"
+python3 - "$KAGURA_DRIVER" <<'PY'
+import ast
+from pathlib import Path
+import sys
+ast.parse(Path(sys.argv[1]).read_text(encoding="utf-8"))
+PY
 
 cat > "$TEST_DIR/test.c" <<'EOF'
 #include <stdio.h>
@@ -91,5 +98,47 @@ grep -Eq '@kagura_vm_execute|@kagura_vm_bc_' "$TEST_DIR/vm.ll" \
 grep -Eq 'call i64 @kagura_vm_execute|call.*@kagura_vm_execute' "$TEST_DIR/vm.ll" \
   || die "VM pass did not replace protected_sum with a VM trampoline"
 link_and_run "$TEST_DIR/vm.ll" "$TEST_DIR/vm"
+
+log "Smoke: v0.4 strict policy (AES, string_split, aggressive, scoped)"
+cat > "$TEST_DIR/kagura-v04.json" <<'EOF'
+{
+  "profile": "CUSTOM",
+  "passes": {
+    "str": false,
+    "str_aes": true,
+    "wstr": true,
+    "string_split": true
+  },
+  "string": {
+    "aggressive": true,
+    "scoped": true
+  }
+}
+EOF
+qemu-aarch64 "$KAGURA_OPT" \
+  -kagura-config-check -kagura-config="$TEST_DIR/kagura-v04.json"
+
+# Run the Python driver on the Linux runner with QEMU for the Bionic binary.
+cat > "$TEST_DIR/kagura-opt-qemu" <<EOF
+#!/usr/bin/env bash
+exec qemu-aarch64 "$KAGURA_OPT" "\$@"
+EOF
+chmod +x "$TEST_DIR/kagura-opt-qemu"
+python3 "$KAGURA_DRIVER" \
+  --kagura-opt="$TEST_DIR/kagura-opt-qemu" \
+  --config-check "$TEST_DIR/kagura-v04.json"
+
+log "Smoke: v0.4 compiler driver / AArch64 object"
+python3 "$KAGURA_DRIVER" \
+  --clang="$CC" \
+  --kagura-opt="$TEST_DIR/kagura-opt-qemu" \
+  -O1 -kagura-config="$TEST_DIR/kagura-v04.json" \
+  -c "$TEST_DIR/test.c" -o "$TEST_DIR/driver.o"
+"$CC" "${TARGET_ARGS[@]}" -O1 -static -fuse-ld=lld \
+  "$TEST_DIR/driver.o" "$RUNTIME" \
+  -Wl,-z,max-page-size=16384 -o "$TEST_DIR/driver"
+got="$(qemu-aarch64 "$TEST_DIR/driver")"
+[[ "$got" == "KAGURA_TERMUX_SECRET_7E3B1A:100" ]] \
+  || die "compiler driver runtime mismatch: '$got'"
 
 log "All smoke tests passed for $NDK_LABEL / LLVM $LLVM_VERSION"

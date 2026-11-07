@@ -20,8 +20,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check integration/profiles/*.json
+      - name: Check profiles and Python catalog
         run: python3 scripts/ci/gen-profiles.py --check
+
+  python-tools:
+    name: MCP and Python tools (${{ matrix.os }}, Python ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-14, windows-latest]
+        python: ['3.10', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install ./mcp
+      - run: python -m unittest discover -s mcp/tests -v
+      - run: python -m unittest discover -s tests/tooling -p 'test_paper_*.py' -v
 
   # ---- Assertions build ---------------------------------------------------
   # Every other job builds Release, which defines NDEBUG and compiles assert()
@@ -95,11 +111,6 @@ jobs:
       matrix:
         include:
           # macOS arm64 runners
-          # KAGURA_BITCODE_TOOLS=OFF in CI: kagura-opt requires the Homebrew
-          # LLVM libc++ sysroot to be wired up correctly, which varies across
-          # GHA runner images and is a build-system detail orthogonal to
-          # testing the obfuscation passes themselves.  Build kagura-opt locally
-          # with: cmake -DKAGURA_BITCODE_TOOLS=ON -DCMAKE_OSX_SYSROOT=$(xcrun --show-sdk-path)
           - { os: macos-14, llvm: "17" }
           - { os: macos-14, llvm: "18" }
           - { os: macos-14, llvm: "19" }
@@ -134,7 +145,7 @@ jobs:
             -DCMAKE_C_COMPILER="$LLVM_PREFIX/bin/clang" \
             -DCMAKE_CXX_COMPILER="$LLVM_PREFIX/bin/clang++" \
             -DKAGURA_BUILD_TESTS=ON \
-            -DKAGURA_BITCODE_TOOLS=OFF \
+            -DKAGURA_BITCODE_TOOLS=ON \
             -DKAGURA_REQUIRE_LIT=ON
 
       - name: Build
@@ -144,7 +155,7 @@ jobs:
         run: cd build && ctest --output-on-failure -j$(sysctl -n hw.logicalcpu)
 
       # Every ctest above stops at the IR or link level. These two run the
-      # obfuscated code. CONTRIBUTING.md has always told contributors to run
+      # obfuscated code. docs/project/CONTRIBUTING.md has always told contributors to run
       # differential-test.sh, but it was never in CI, and on macOS it could not
       # work at all: it shelled out to timeout(1), which does not exist there,
       # and only gated its exit status on failures — so it reported success for

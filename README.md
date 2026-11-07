@@ -57,20 +57,18 @@ Built on the **New Pass Manager** (LLVM 17+). Loaded as a pass plugin via `-fpas
 | Xcode / Gradle / Unity / Unreal / Bazel / CMake / CocoaPods / SPM | [Integration](https://qusamulab.github.io/kagura/integration/) |
 | `Protected<T>` for HP / currency / etc. | [Game Protection](https://qusamulab.github.io/kagura/game-protection/) |
 | Differential, reproducible, angr / Ghidra / Frida | [Testing & Evaluation](https://qusamulab.github.io/kagura/testing/) |
+| AI client policy authoring & build inspection | [kagura-mcp](mcp/README.md) |
 
 ## Quick taste
 
-> **LLVM 22 required for `-mllvm` flags.** On LLVM 17–21, clang parses `-mllvm`
-> options before `-fpass-plugin` has loaded the plugin, so every `-kagura-*`
-> flag is rejected with *"Unknown command line argument"*. Use the shipped
-> `kagura-opt`, or `opt --load-pass-plugin=<plugin> -kagura-… -passes=…`, both
-> of which work on all supported versions. See
-> [Known issues](https://github.com/qusamulab/kagura/blob/main/CHANGELOG.md#known-issues).
+Use the `kagura` compiler driver with a matching upstream LLVM 17–22 toolchain
+and Python 3.9+. Default builds include the driver and `kagura-opt`.
+See the [compiler driver guide](docs/getting-started/compiler-driver.md).
 
 ```bash
-clang -fpass-plugin=KaguraObfuscator.dylib \
-      -mllvm -kagura-config=kagura.json \
-      -O1 your_file.c -o your_file
+export LLVM_PREFIX=/path/to/llvm
+build/bin/kagura --config-check kagura.json
+build/bin/kagura -kagura-config=kagura.json -O1 your_file.c -o your_file
 ```
 
 ```json
@@ -99,6 +97,12 @@ If you use Kagura in your research or build on it, please cite the [paper](https
 - 💬 **[Discussions](https://github.com/qusamulab/kagura/discussions)** — questions, ideas, share your use case
 - 🐞 **[Issues](https://github.com/qusamulab/kagura/issues)** — bugs and feature requests (templates provided)
 - 📚 **[Documentation](https://qusamulab.github.io/kagura)** — passes, configuration, integration, testing
+
+## Development
+
+See the [contributor guide](docs/project/CONTRIBUTING.md),
+[remaining work](docs/project/TODO.md), [changelog](docs/project/CHANGELOG.md),
+and [agent development instructions](AGENTS.md).
 
 ## License
 

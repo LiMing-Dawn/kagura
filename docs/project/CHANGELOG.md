@@ -5,6 +5,66 @@ All notable changes to Kagura are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+## [0.4.0] — 2026-11-04
+
+### Added
+
+- Rewritten paper with explicit threat model and implementation boundaries,
+  reproducible selected-pass measurements, and a separate historical
+  shipped-profile deployment experiment. Generated tables and raw observations
+  distinguish code growth, bounded correctness checks and startup failures.
+- Evaluation-tool regression checks across the Python CI matrix. Reports mark
+  running, failed and completed measurements; table generation rejects
+  incomplete reports and follows the recorded seed list.
+- `kagura` source compiler driver for LLVM 17–22, included in default builds
+  and release bundles. Supports explicit toolchains, separate compilation,
+  runtime discovery and policy preflight through native check-only validation.
+- Opt-in `-kagura-string-scoped` / `"string": {"scoped": true}` for XOR/AES:
+  eligible nonthrowing, readonly, noncapturing consumers use per-call stack
+  plaintext with a volatile wipe. Unsupported uses retain persistent storage.
+- MCP/CLI scoped-string policy generation and validation; doctor reports
+  compiler-driver discovery and toolchain readiness.
+- Windows AntiDebug runtime entry points, loaded-module symbol resolution for
+  DLL-import call indirection, and clean/patched API/IAT runtime tests.
+
+- Local `kagura-mcp` stdio server with environment diagnosis, registry/profile
+  discovery, policy generation and validation, paginated audit inspection, and
+  structured baseline/obfuscated binary comparison. File inputs are scoped to
+  a configured workspace; the tools do not write or build application artifacts.
+- LLVM-independent `kagura-cli.py config-check` with policy names, types,
+  numeric ranges and flavor validation. The MCP SDK is not needed by this CLI.
+
+### Fixed
+
+- Failed paper-evaluation reruns no longer leave earlier results available as
+  the current measurement; table generation also removes stale output on error.
+- Paper descriptions distinguish Windows limitations at the historical
+  measurement revision from runtime support added subsequently in PR #79.
+- Windows debugger PEB access supports MSVC intrinsics; AntiDebug omits POSIX
+  ptrace startup on Windows. Hardware detection uses a real CPU trap context.
+- Preserve selected MSVC CRT linkage across split driver stages; safely scoped
+  Windows pooled COMDAT literals can now be transformed.
+- Ordinary COFF external calls retain linker resolution instead of attempting unexported symbol lookup.
+- Strict native policy validation rejects invalid types/ranges and unused
+  malformed flavors, including file/JSON errors; check-only mode writes no IR.
+- Correct plaintext-lifetime claims: default XOR/AES buffers remain persistent;
+  scoped wiping is conditional and cannot erase consumer copies or registers.
+
+- Generate CLI policies from the same profiles and pass registry as the plugin,
+  including current opt-in passes. Emit `allowlist`/`denylist`, `tuning.seed`
+  and `passes.dwarf` in their supported locations. Report audit, symbol-map and
+  build-ID options as additional compiler flags instead of ignored JSON keys.
+
+### Known limitations
+
+- The paper records startup aborts with shipped anti-debug profiles on its
+  arm64 macOS host. A v0.4.0 pre-release check with two additional seeds
+  reproduced those aborts; explicit anti-debug ablations passed bounded
+  correctness checks. This release documents the issue without changing the
+  runtime detector. Validate profile startup on each deployment target.
+
 ## [0.3.0] — 2026-10-26
 
 A repair release. Several documented flags did nothing at all; a few produced

@@ -112,9 +112,17 @@ cmake --build "$KAGURA_BUILD" --target kagura-opt kagura_runtime -- -j"$(nproc)"
 cmake --install "$KAGURA_BUILD" --prefix "$STAGE"
 
 KAGURA_OPT="$STAGE/bin/kagura-opt"
+KAGURA_DRIVER="$STAGE/bin/kagura"
 RUNTIME="$STAGE/lib/libkagura_runtime.a"
-[[ -f "$KAGURA_OPT" ]] || die "kagura-opt missing"
+[[ -x "$KAGURA_OPT" ]] || die "kagura-opt missing or not executable"
+[[ -f "$KAGURA_DRIVER" ]] || die "v0.4+ compiler driver missing"
 [[ -f "$RUNTIME" ]] || die "runtime missing"
+python3 - "$KAGURA_DRIVER" <<'PY'
+import ast
+from pathlib import Path
+import sys
+ast.parse(Path(sys.argv[1]).read_text(encoding="utf-8"))
+PY
 
 mkdir -p "$STAGE/share/kagura/metadata"
 cp "$INFO" "$STAGE/share/kagura/metadata/clang_source_info.md"
@@ -135,6 +143,7 @@ LLVM_VERSION=$(printf '%q' "$LLVM_CONFIG_VERSION")
 LLVM_MAJOR=$(printf '%q' "$LLVM_MAJOR")
 STAGE=$(printf '%q' "$STAGE")
 KAGURA_OPT=$(printf '%q' "$KAGURA_OPT")
+KAGURA_DRIVER=$(printf '%q' "$KAGURA_DRIVER")
 RUNTIME=$(printf '%q' "$RUNTIME")
 EOF
 
